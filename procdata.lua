@@ -203,7 +203,7 @@ function procdata.get_cpu_times()
   if not usr then
     return nil, "Error getting cpu times"
   end
-  cticks = unistd.sysconf(unistd._SC_CLK_TCK)
+  local cticks = unistd.sysconf(unistd._SC_CLK_TCK)
   return {user = tonumber(usr)/cticks,
           nice = tonumber(nice)/cticks, 
           system = tonumber(sys)/cticks,
@@ -249,7 +249,7 @@ function procdata.get_process_info(pid)
   if not pid then
     return nil, "Error getting process "..pid.." info"
   end
-  cticks = unistd.sysconf(unistd._SC_CLK_TCK)
+  local cticks = unistd.sysconf(unistd._SC_CLK_TCK)
   local t =  {
           pid = tonumber(pid), ppid = tonumber(ppid),
           comm = comm, state = state,
