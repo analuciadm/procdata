@@ -230,33 +230,61 @@ end
 --
 
 -- pid, ppid, command string, state, user and system time (in seconds)
--- starttime (in seconds from boot), virtual mem size in bytes
+-- starttime (in seconds from boot)
+-- memory use: virtual, resident and shared (in bytes)
+local skip1 = string.rep("[^%s]*%s+",9)
+local skip2 = string.rep("[^%s]*%s+",6)
+local stat_patt = "%s*(%d+)%s+%(([^)]+)%)%s+(%a)%s+(%d+)%s+"..skip1..
+                  "(%d+)%s+(%d+)%s+"..skip2.."(%d+)%s+.*"
+local vm_patt = "VmSize"
+local rss_patt = "VmRSS"
+local shr_patt = "VmLib"
+
 function procdata.get_process_info(pid)
   if not pid then
     return nil, "Process ID (pid) not provided"
   end
-  local f = "/proc/"..pid.."/stat"
-  local skip1 = string.rep("[^%s]*%s+",9)
-  local skip2 = string.rep("[^%s]*%s+",6)
-  local fd = io.open(f)
+  local f1 = "/proc/"..pid.."/stat"
+  local f2 = "/proc/"..pid.."/status"
+  local fd = io.open(f1)
   if not fd then
-    return nil, "Error opening "..f
+    return nil, "Error opening "..f1
   end
   local info = fd:read("*a")
-  local pid,comm,state,ppid,utime,stime,starttime,vsize = 
-        info:match("%s*(%d+)%s+%(([^)]+)%)%s+(%a)%s+(%d+)%s+"..skip1..
-        "(%d+)%s+(%d+)%s+"..skip2.."(%d+)%s+(%d+)%s+.*")
+  local pid,comm,state,ppid,utime,stime,starttime = 
+        info:match(stat_patt)
   if not pid then
     return nil, "Error getting process "..pid.." info"
   end
   local cticks = unistd.sysconf(unistd._SC_CLK_TCK)
+  utime = tonumber(utime)/cticks
+  stime = tonumber(stime)/cticks
+  starttime = tonumber(starttime)/cticks
+
+  fd = io.open(f2)
+  if not fd then
+    return nil, "Error opening "..f2
+  end
+  info = fd:read("*a")
+  local vmsize = getm(info,vm_patt)
+  if not vmsize then 
+    return nil, "Error getting process"..pid.." info (vmsize)"
+  end
+  local rss = getm(info,rss_patt)
+  if not rss then 
+    return nil, "Error getting process"..pid.." info (rss)"
+  end
+  local shared = getm(info,shr_patt)
+  if not shared then 
+    return nil, "Error getting process"..pid.." info (shared)"
+  end
+
+print(vmsize,rss,shared)
   local t =  {
           pid = tonumber(pid), ppid = tonumber(ppid),
           comm = comm, state = state,
-          utime = tonumber(utime)/cticks, 
-          stime = tonumber(stime)/cticks,
-          starttime = tonumber(starttime)/cticks,
-          vsize = tonumber(vsize)
+          utime = utime, stime = stime, starttime = starttime,
+          vmsize = vmsize, rss = rss, shared = shared,
   }
   local upt = procdata.get_uptime()
   if upt then
