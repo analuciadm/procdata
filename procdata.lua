@@ -280,15 +280,15 @@ function procdata.get_process_info(pid)
   io.close(fd)
   local vmsize = getm(info,vm_patt)
   if not vmsize then 
-    return nil, "Error getting process"..pid.." info (vmsize)"
+    vmsize = 0
   end
   local rss = getm(info,rss_patt)
   if not rss then 
-    return nil, "Error getting process"..pid.." info (rss)"
+    rss = 0
   end
   local shared = getm(info,shr_patt)
   if not shared then 
-    return nil, "Error getting process"..pid.." info (shared)"
+    shared = 0
   end
 
   local t =  {
