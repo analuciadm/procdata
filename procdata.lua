@@ -5,6 +5,7 @@ local procdata = {}
 local pdata_info = {}
 
 local unistd = require("posix.unistd")
+local lfs = require("lfs")
 
 --
 -- Platform Information
@@ -21,6 +22,7 @@ function procdata.get_platform()
       return nil, "Error opening "..plat_file
     end
     local info = fd:read("*a")
+    io.close(fd)
     local os, release = info:match(plat_patt)
     if not os then
       os = "unknown"
@@ -67,6 +69,7 @@ function procdata.get_total_memory()
       return nil, "Error opening "..mem_file
     end
     local info = fd:read("*a")
+    io.close(fd)
     local ram = getm(info,ram_patt)
     if not ram then return nil, "Error getting ram" end
     local swap = getm(info,swap_patt)
@@ -83,6 +86,7 @@ function procdata.get_free_memory()
     return nil, "Error opening "..mem_file
   end
   local info = fd:read("*a")
+  io.close(fd)
   local ram = getm(info,ramf_patt)
   if not ram then return nil, "Error getting free ram" end
   local swap = getm(info,swapf_patt)
@@ -114,6 +118,7 @@ function procdata.get_num_cpus()
       return nil, "Error opening "..ncpus_file
     end
     local info = fd:read("*a")
+    io.close(fd)
     local ncpus = 0
     for _ in info:gmatch(ncpus_patt) do
       ncpus = ncpus + 1
@@ -141,6 +146,7 @@ function procdata.get_clock_speed()
     fd = io.open(speed_alt1_file)
     if fd then
       cspeed = tonumber(fd:read("*a"))/1000
+      io.close(fd)
     else
       -- alternatively we try /proc/cpuinfo to get highest speed
       fd = io.open(speed_alt2_file)
@@ -149,6 +155,7 @@ function procdata.get_clock_speed()
           "Cannot find either ..speed_alt1_file".. "or "..speed_alt2_file
       end
       info = fd:read("*a")
+      io.close(fd)
       cspeed = 0
       for sp in info:gmatch(speed_alt2_patt) do
         sp = tonumber(sp)
@@ -176,6 +183,7 @@ function procdata.get_cpu_load()
     return nil, "Error opening "..lavg_file
   end
   local info = fd:read("*a")
+  io.close(fd)
   local l1,l5,l15 = info:match(lavg_patt)
   if not l1 then
     return nil, "Error getting load average"
@@ -199,6 +207,7 @@ function procdata.get_cpu_times()
     return nil, "Error opening "..ctimes_file
   end
   local info = fd:read("*a")
+  io.close(fd)
   local usr,nice,sys,idle = info:match(ctimes_patt)
   if not usr then
     return nil, "Error getting cpu times"
@@ -218,6 +227,7 @@ function procdata.get_uptime()
     return nil, "Error opening "..uptime_file
   end
   local info = fd:read("*a")
+  io.close(fd)
   local upt = info:match("(%d+%.%d+)")
   if not upt then
     return nil, "Error getting system uptime"
@@ -251,6 +261,7 @@ function procdata.get_process_info(pid)
     return nil, "Error opening "..f1
   end
   local info = fd:read("*a")
+  io.close(fd)
   local pid,comm,state,ppid,utime,stime,starttime = 
         info:match(stat_patt)
   if not pid then
@@ -266,6 +277,7 @@ function procdata.get_process_info(pid)
     return nil, "Error opening "..f2
   end
   info = fd:read("*a")
+  io.close(fd)
   local vmsize = getm(info,vm_patt)
   if not vmsize then 
     return nil, "Error getting process"..pid.." info (vmsize)"
@@ -279,7 +291,6 @@ function procdata.get_process_info(pid)
     return nil, "Error getting process"..pid.." info (shared)"
   end
 
-print(vmsize,rss,shared)
   local t =  {
           pid = tonumber(pid), ppid = tonumber(ppid),
           comm = comm, state = state,
@@ -292,4 +303,40 @@ print(vmsize,rss,shared)
   end
   return t
 end
+
+-- get all processes
+function procdata.get_processes()
+  local pids = {}
+  for dir in lfs.dir("/proc") do
+    if tonumber(dir) then
+      table.insert(pids,tonumber(dir))
+    end
+  end
+  return pids
+end
+
+-- get process children
+local ppid_patt = "%s*%d+%s+%([^)]+%)%s+%a%s+(%d+).*"
+function procdata.get_children(pid)
+  if not pid then
+    return nil, "Process ID (pid) not provided"
+  end
+  local children = {}
+  local pids = procdata.get_processes()
+  for i = 1, #pids do
+    local child = pids[i]
+    local file_pid =  "/proc/"..child.."/stat"
+    local fd = io.open(file_pid)
+    if fd then
+      local info = fd:read("*a")
+      io.close(fd)
+      local ppid = info:match(ppid_patt)
+      if tonumber(ppid) == pid then
+        table.insert(children, child)
+      end
+    end
+  end
+  return children
+end
+
 return procdata
