@@ -13,6 +13,7 @@ description = {
 
 dependencies = {
    "luaposix",
+   "luafilesystem",
 }
 
 build = {
