@@ -2,7 +2,6 @@
 -- Monitoring information obtained from the proc pseudo-file system
 --
 local procdata = {}
-local pdata_info = {}
 
 local unistd = require("posix.unistd")
 local lfs = require("lfs")
@@ -16,25 +15,22 @@ local plat_file = "/proc/version"
 local plat_patt = "([^%s]+)%s+version%s+([^%s]+)"
 local gcc_patt = ".-gcc version ([%.%d]+)"
 function procdata.get_platform()
-  if not pdata_info.platform then
-    local fd = io.open(plat_file)
-    if not fd then
-      return nil, "Error opening "..plat_file
-    end
-    local info = fd:read("*a")
-    io.close(fd)
-    local os, release = info:match(plat_patt)
-    if not os then
-      os = "unknown"
-      release = "unknown"
-    end
-    local gcc = info:match(gcc_patt)
-    if not gcc then
-      gcc = "unknown"
-    end
-    pdata_info.platform = {os = os, release = release, gcc = gcc} 
+  local fd = io.open(plat_file)
+  if not fd then
+    return nil, "Error opening "..plat_file
   end
-  return pdata_info.platform
+  local info = fd:read("*a")
+  io.close(fd)
+  local os, release = info:match(plat_patt)
+  if not os then
+    os = "unknown"
+    release = "unknown"
+  end
+  local gcc = info:match(gcc_patt)
+  if not gcc then
+    gcc = "unknown"
+  end
+  return {os = os, release = release, gcc = gcc} 
 end
 
 --
@@ -63,20 +59,17 @@ end
 
 -- Total memory (ram and swap) in bytes
 function procdata.get_total_memory()
-  if not pdata_info.total_memory then
-    local fd = io.open(mem_file)
-    if not fd then
-      return nil, "Error opening "..mem_file
-    end
-    local info = fd:read("*a")
-    io.close(fd)
-    local ram = getm(info,ram_patt)
-    if not ram then return nil, "Error getting ram" end
-    local swap = getm(info,swap_patt)
-    if not swap then return nil, "Error getting swap" end
-    pdata_info.total_memory = {ram = ram, swap = swap} 
+  local fd = io.open(mem_file)
+  if not fd then
+    return nil, "Error opening "..mem_file
   end
-  return pdata_info.total_memory
+  local info = fd:read("*a")
+  io.close(fd)
+  local ram = getm(info,ram_patt)
+  if not ram then return nil, "Error getting ram" end
+  local swap = getm(info,swap_patt)
+  if not swap then return nil, "Error getting swap" end
+  return {ram = ram, swap = swap} 
 end
 
 -- Free memory (ram and swap) in bytes
@@ -112,27 +105,22 @@ end
 local ncpus_file = "/proc/stat"
 local ncpus_patt = "cpu%d+"
 function procdata.get_num_cpus()
-  if not pdata_info.ncpus then
-    local fd = io.open(ncpus_file)
-    if not fd then
-      return nil, "Error opening "..ncpus_file
-    end
-    local info = fd:read("*a")
-    io.close(fd)
-    local ncpus = 0
-    for _ in info:gmatch(ncpus_patt) do
-      ncpus = ncpus + 1
-    end
-    if ncpus == 0 then 
-      pdata_info.ncpus = 1
-    else
-      pdata_info.ncpus = ncpus
-    end
+  local fd = io.open(ncpus_file)
+  if not fd then
+    return nil, "Error opening "..ncpus_file
   end
-  return pdata_info.ncpus
+  local info = fd:read("*a")
+  io.close(fd)
+  local ncpus = 0
+  for _ in info:gmatch(ncpus_patt) do
+    ncpus = ncpus + 1
+  end
+  if ncpus == 0 then 
+    return 1
+  else
+    return ncpus
+  end
 end
-
-
 
 -- Clock speed (in MHz)
 local speed_alt1_file = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
@@ -140,36 +128,33 @@ local speed_alt2_file = "/proc/cpuinfo"
 local speed_alt2_patt = "cpu MHz%s*:%s*(%d+)"
 
 function procdata.get_clock_speed()
-  if not pdata_info.cspeed then
-    local fd, info, cspeed
-    -- first we try /sys
-    fd = io.open(speed_alt1_file)
-    if fd then
-      cspeed = tonumber(fd:read("*a"))/1000
-      io.close(fd)
-    else
-      -- alternatively we try /proc/cpuinfo to get highest speed
-      fd = io.open(speed_alt2_file)
-      if not fd then
-        return nil, 
-          "Cannot find either ..speed_alt1_file".. "or "..speed_alt2_file
-      end
-      info = fd:read("*a")
-      io.close(fd)
-      cspeed = 0
-      for sp in info:gmatch(speed_alt2_patt) do
-        sp = tonumber(sp)
-        if sp > cspeed then
-          cspeed = sp
-        end
-      end
-      if cspeed == 0 then
-        return nil, "Error getting cpu clock speed"
+  local fd, info, cspeed
+  -- first we try /sys
+  fd = io.open(speed_alt1_file)
+  if fd then
+    cspeed = tonumber(fd:read("*a"))/1000
+    io.close(fd)
+  else
+    -- alternatively we try /proc/cpuinfo to get highest speed
+    fd = io.open(speed_alt2_file)
+    if not fd then
+      return nil, 
+        "Cannot find either ..speed_alt1_file".. "or "..speed_alt2_file
+    end
+    info = fd:read("*a")
+    io.close(fd)
+    cspeed = 0
+    for sp in info:gmatch(speed_alt2_patt) do
+      sp = tonumber(sp)
+      if sp > cspeed then
+        cspeed = sp
       end
     end
-    pdata_info.cspeed = cspeed
+    if cspeed == 0 then
+      return nil, "Error getting cpu clock speed"
+    end
   end
-  return pdata_info.cspeed
+  return cspeed
 end
 
 -- Load average (loadavg, runnable/total scheduling entities)
@@ -239,30 +224,30 @@ end
 -- Processes information
 --
 
--- pid, ppid, command string, state, user and system time (in seconds)
--- starttime (in seconds from boot)
+-- pid, ppid, command string, state 
+-- user and system time (in seconds)
+-- starttime (in seconds since standard epoch)
 -- memory use: virtual, resident and shared (in bytes)
-local skip1 = string.rep("[^%s]*%s+",9)
-local skip2 = string.rep("[^%s]*%s+",6)
-local stat_patt = "%s*(%d+)%s+%(([^)]+)%)%s+(%a)%s+(%d+)%s+"..skip1..
-                  "(%d+)%s+(%d+)%s+"..skip2.."(%d+)%s+.*"
-local vm_patt = "VmSize"
-local rss_patt = "VmRSS"
-local shr_patt = "VmLib"
+local skip = string.rep("[^%s]*%s+",9)
+local stat_patt = "%s*(%d+)%s+%(([^)]+)%)%s+(%a)%s+(%d+)%s+"..skip..
+                  "(%d+)%s+(%d+)"
+local statm_patt = "%s*(%d+)%s+(%d+)%s+(%d+)"
 
 function procdata.get_process_info(pid)
   if not pid then
     return nil, "Process ID (pid) not provided"
   end
-  local f1 = "/proc/"..pid.."/stat"
-  local f2 = "/proc/"..pid.."/status"
-  local fd = io.open(f1)
+  local fproc = "/proc/"..pid
+  local fstat = fproc.."/stat"
+  local fstatm = fproc.."/statm"
+
+  local fd = io.open(fstat)
   if not fd then
-    return nil, "Error opening "..f1
+    return nil, "Process "..pid.." not found"
   end
   local info = fd:read("*a")
   io.close(fd)
-  local pid,comm,state,ppid,utime,stime,starttime = 
+  local pid,comm,state,ppid,utime,stime = 
         info:match(stat_patt)
   if not pid then
     return nil, "Error getting process "..pid.." info"
@@ -270,25 +255,31 @@ function procdata.get_process_info(pid)
   local cticks = unistd.sysconf(unistd._SC_CLK_TCK)
   utime = tonumber(utime)/cticks
   stime = tonumber(stime)/cticks
-  starttime = tonumber(starttime)/cticks
 
-  fd = io.open(f2)
-  if not fd then
-    return nil, "Error opening "..f2
+  local starttime
+  local attr,err = lfs.attributes(fproc)
+  if not attr then
+    starttime = 0
+  else
+    starttime = attr.change
   end
-  info = fd:read("*a")
-  io.close(fd)
-  local vmsize = getm(info,vm_patt)
-  if not vmsize then 
-    vmsize = 0
-  end
-  local rss = getm(info,rss_patt)
-  if not rss then 
-    rss = 0
-  end
-  local shared = getm(info,shr_patt)
-  if not shared then 
-    shared = 0
+
+  fd = io.open(fstatm)
+  local vmsize, rss, shared
+  if fd then
+    info = fd:read("*a")
+    io.close(fd)
+    vmsize,rss,shared = info:match(statm_patt)
+    local psize = 4096
+    if not vmsize then 
+      vmsize = 0
+      rss = 0
+      shared = 0
+    else
+      vmsize = tonumber(vmsize) * psize
+      rss = tonumber(rss) * psize
+      shared = tonumber(shared) * psize
+    end
   end
 
   local t =  {
@@ -297,10 +288,7 @@ function procdata.get_process_info(pid)
           utime = utime, stime = stime, starttime = starttime,
           vmsize = vmsize, rss = rss, shared = shared,
   }
-  local upt = procdata.get_uptime()
-  if upt then
-    t.walltime = upt - t.starttime
-  end
+  t.walltime = os.time() - t.starttime
   return t
 end
 
