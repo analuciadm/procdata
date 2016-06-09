@@ -37,7 +37,7 @@ end
 -- Memory Information
 --
 
-local mem_fact = {k = 1024, m = 1024*1024, g = 1024*1024*1024}
+local mem_fact = {k = 1024, m = 1024^2, g = 1024^3, t = 1024^4}
 local mem_patt = ":%s*(%d+)"
 local unit_patt = ":%s*%d+%s*(%a+)"
 local mem_file = "/proc/meminfo"
