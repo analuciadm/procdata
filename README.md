@@ -8,9 +8,10 @@ Lua access to system information provided by the Linux _**/proc**_ pseudo-file s
 
 ## API
 
-When a function returns a table, the table keys are **boldfaced**.
+### Notes: ###
 
-All functions return _nil_ and an error message in case of error.
+- When a function returns a table, the table keys are **boldfaced**.
+- All functions return _nil_ and an error message in case of error.
 
 **procdata.get_platform()**
 
