@@ -1,5 +1,5 @@
 --
--- Monitoring information obtained from the proc pseudo-file system
+-- Access to system information provided by the Linux /proc pseudo-file system
 --
 local procdata = {}
 
@@ -157,7 +157,7 @@ function procdata.get_clock_speed()
   return cspeed
 end
 
--- Load average (loadavg, runnable/total scheduling entities)
+-- Load average (loadavg, executing/total scheduling entities)
 local lavg_file = "/proc/loadavg"
 local lavg_patt = "(%d+%.%d+)%s+(%d+%.%d+)%s+(%d+%.%d+)"
 local ent_patt = "%d+%.%d+%s+%d+%.%d+%s+%d+%.%d+%s+(%d+)/(%d+)"
@@ -176,7 +176,7 @@ function procdata.get_cpu_load()
   local t = {l1 = tonumber(l1), l5 = tonumber(l5), l15 = tonumber(l15)}
   local re,te = info:match(ent_patt)
   if re then
-    t.runnable = tonumber(re)
+    t.executing = tonumber(re)
     t.total = tonumber(te)
   end
   return t
